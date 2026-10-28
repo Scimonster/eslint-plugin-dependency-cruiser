@@ -45,10 +45,9 @@ violations of Dependency Cruiser rules with `error` severity, and
 
 By default the plugin looks for the Dependency Cruiser configuration and the
 baseline file in the default locations (`.dependency-cruiser.{js,cjs,mjs,json}`
-and `.dependency-cruiser-known-violations.json`). You can configure that using
-ESLint's settings, specifying `dependency-cruiser` key with a value of an object
-with `config` and `knownViolations`. Paths are relative to ESLint's working
-directory. For example:
+and `.dependency-cruiser-known-violations.json`), and cruises the `src` folder.
+You can configure that using ESLint's settings, under the `dependency-cruiser`
+key. Paths are relative to ESLint's working directory. For example:
 
 ```js
 export default [
@@ -56,8 +55,14 @@ export default [
   {
     settings: {
       "dependency-cruiser": {
-        knownViolations: ".dependency-cruiser-baseline.json",
         config: ".dependency-cruiser.cjs",
+        knownViolations: ".dependency-cruiser-baseline.json",
+        // Folders to cruise; files outside them get no reports
+        roots: ["src", "scripts"],
+        // Whether the first cruise may use Dependency Cruiser's disk cache
+        cache: true,
+        // How old the dependency graph may get before it's refreshed, in ms
+        ttl: 30000,
         // How long to wait for Dependency Cruiser before failing, in ms
         timeout: 60000,
       },
@@ -68,6 +73,18 @@ export default [
 
 Violations listed in the baseline file are not reported.
 
+## What gets reported
+
+The plugin cruises the whole dependency graph, so it reports every kind of
+violation Dependency Cruiser finds:
+
+- Dependency violations (including each edge of a circular dependency) are
+  reported on the `import`, `export ... from`, `import()`, `require()`,
+  `import x = require()` or `import("x")` type that causes them. If none can be
+  found (e.g. a JSDoc import), they're reported on the first line.
+- Module violations (orphans, reachability) are reported on the first line.
+- Folder violations have no file to report on, so they're not reported.
+
 ## How it works
 
 Dependency Cruiser is ESM-only and its API is asynchronous, but ESLint rules
@@ -76,19 +93,38 @@ must be synchronous. The plugin runs Dependency Cruiser in a worker thread
 rule. The worker is started on first use and reused for the rest of the ESLint
 process.
 
+The worker cruises the roots once, and keeps the violations of every file in
+memory, so each file after the first is a lookup. The first cruise uses
+Dependency Cruiser's disk cache (in
+`node_modules/.cache/eslint-plugin-dependency-cruiser`), keyed on the git
+commit and uncommitted changes, so it's fast when nothing changed since the
+last run.
+
+In an editor, the ESLint process lives on, and the graph is refreshed when:
+
+- the file being linted changed on disk. ESLint waits for the refresh.
+- any file under the roots changed, which is how an edit to one file updates
+  the violations of another (e.g. a broken cycle). The previous results are
+  served while the graph refreshes in the background, so other files catch up
+  on their next lint.
+- the graph is older than `ttl`, or the baseline file changed (also in the
+  background).
+
 ## Limitations
 
 The plugin is not exposing all validation features or configuration options of
 Dependency Cruiser. Some things missing:
 
 - Support for loading webpack configuration
-- Support for detecting violations that require cruising the whole dependency
-  tree, e.g. circular dependencies
-- Violations are only reported on `import` declarations, not on `export ... from`,
-  dynamic `import()` or `require()`
+- Unsaved editor changes aren't seen; Dependency Cruiser reads files from disk
+- Changes to a JavaScript Dependency Cruiser config (`.js`, `.cjs`, `.mjs`)
+  need an ESLint restart (e.g. "Restart ESLint Server" in VS Code), because
+  Node caches imported modules. JSON configs are reloaded.
+- With `eslint --cache`, files that didn't change aren't re-linted, so their
+  graph violations (e.g. a cycle through an edited file) can be stale
 
 ## Performance
 
-In the current iteration, this plugin is fairly slow. It runs Dependency Cruiser to analyse
-dependencies of each file. This makes it perform OK in development when ran by the editor on 
-a single file, but adds up quickly if running a full ESLint check for a large codebase.
+A full ESLint run cruises the roots once, which takes about as long as running
+Dependency Cruiser itself (less when its disk cache is warm), and then costs
+well under a millisecond per file.
