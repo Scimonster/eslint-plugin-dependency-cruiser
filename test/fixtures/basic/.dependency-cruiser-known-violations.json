@@ -1,0 +1,8 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/features/b/known.ts",
+    "to": "src/legacy/old.ts",
+    "rule": { "severity": "warn", "name": "no-legacy" }
+  }
+]
