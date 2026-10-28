@@ -10,6 +10,12 @@ export interface PluginSettings {
   knownViolations?: string;
   /** @deprecated alias of `knownViolations`, kept for 0.1.x compatibility */
   knownViolationsFile?: string;
+  /** Folders to cruise, relative to ESLint's cwd. Defaults to `["src"]` */
+  roots?: string[];
+  /** Whether the first cruise may use dependency-cruiser's disk cache. Defaults to true */
+  cache?: boolean;
+  /** How old (ms) the dependency graph may get before it's refreshed. Defaults to 30s */
+  ttl?: number;
   /** How long (ms) to wait for the dependency-cruiser worker before failing */
   timeout?: number;
 }
@@ -18,25 +24,35 @@ export interface PluginSettings {
  * What the rule sends to the worker. Only plain data, since it crosses a thread
  * boundary via structured clone.
  */
-export interface CruiseRequest {
+export interface ReportsRequest {
   cwd: string;
   configPath?: string;
   knownViolationsPath?: string;
+  roots: string[];
+  cache: boolean;
+  ttl: number;
+  /** Absolute path of the linted file */
   file: string;
 }
 
-export interface Violation {
+/**
+ * A violation found by dependency-cruiser, and where the rule should report it:
+ * - `import`: on the import of `specifier` (each edge of a cycle is one of these)
+ * - `file`: on the file as a whole (orphans, reachability)
+ */
+export interface Report {
   name: string;
   severity: SeverityType;
   comment?: string;
-}
-
-export interface CruisedDependency {
+  at: "import" | "file";
   /** The import source as written in the file, e.g. "./bar" */
-  module: string;
-  rules: Violation[];
+  specifier?: string;
+  /** For circular dependencies: the files in the cycle, starting at this one */
+  cycle?: string[];
 }
 
-export interface CruiseResponse {
-  dependencies: CruisedDependency[];
+export interface ReportsResponse {
+  reports: Report[];
+  /** Number of full cruises this project has done; only set for debugging */
+  cruises?: number;
 }
