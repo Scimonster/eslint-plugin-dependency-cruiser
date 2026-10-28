@@ -23,14 +23,15 @@ jobs:
     needs: release
     if: ${{ needs.release.outputs.release_created }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "16.x"
+          node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
           cache: "yarn"
       - run: yarn install --frozen-lockfile
-      - run: yarn build
+      - run: yarn lint
+      - run: yarn test
       - run: yarn publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
