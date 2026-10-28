@@ -1,16 +1,16 @@
 {
-    "include": ["./src"],
-    "compilerOptions": {
-        "target": "ES2019",
-        "module": "commonjs",
-        "lib": ["es2020"],
-        "outDir": "./dist",
-        "strict": true,
-        "moduleResolution": "node",
-        "esModuleInterop": true,
-        "resolveJsonModule": true,
-        "skipLibCheck": true,
-        "allowSyntheticDefaultImports": true,
-        "forceConsistentCasingInFileNames": true
-    }
+  "include": ["src", "tsup.config.ts"],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"]
+  }
 }

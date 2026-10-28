@@ -1,9 +1,8 @@
-import path from "path";
+import type { Rule } from "eslint";
+import type { SeverityType } from "dependency-cruiser";
 
-import { Rule } from "eslint";
-import invariant from "ts-invariant";
-import { cruise, SeverityType } from "dependency-cruiser";
-import { getConfigs, filterRules } from "./dependency-cruiser";
+import { cruiseFileSync } from "./bridge";
+import type { PluginSettings } from "./types";
 
 export function getDependencyCruiserRule(
   severity: SeverityType
@@ -14,105 +13,68 @@ export function getDependencyCruiserRule(
       docs: {
         description: `Report import rule violations of ${severity} severity, found by Dependency Cruiser`,
         recommended: true,
-        url: "https://github.com/pekala/eslint-plugin-dependency-cruiser",
+        url: "https://github.com/Scimonster/eslint-plugin-dependency-cruiser",
+      },
+      messages: {
+        violation: "{{name}} ({{source}}): {{comment}}",
       },
       schema: [],
     },
     create(context) {
-      const settings: unknown = context.settings["dependency-cruiser"];
+      const settings: PluginSettings =
+        context.settings["dependency-cruiser"] ?? {};
 
-      const { depcruiseConfig, knownViolations, tsConfig } = getConfigs(
-        settings,
-        context.getCwd()
-      );
-      const ruleSet = filterRules(depcruiseConfig, severity);
-
-      const currentFileLocation = path.relative(
-        context.getCwd(),
-        context.getPhysicalFilename()
-      );
-
-      // We run dependency cruiser with the options provided by the user via configuration, with
-      // some adjustments:
-      // - we run the dependency cruising for a single file, the current file visited by ESLint
-      // - only run rules of type forbidden (current limitation of this plugin) for the current
-      //   severity of the rule (this code will be ran for error and warn separately)
-      // - only scan dependencies one level deep. ESLint runs this rule for each file  so we only
-      //   need to know about its dependencies. This is the current approach that e.g. makes the
-      //   cyclic dependencies rules not possible to detect, but has an acceptable performance.
-      const cruiseResult = cruise(
-        [currentFileLocation],
+      // We run dependency cruiser with the options provided by the user via
+      // configuration, for the current file only. Both rules (error and warn)
+      // share one cruise per file, and filter its violations by severity.
+      const { dependencies } = cruiseFileSync(
         {
-          ruleSet,
-          ...ruleSet.options,
-          maxDepth: 1,
-          validate: true,
-          ...(knownViolations ? { knownViolations } : {}),
+          cwd: context.cwd,
+          configPath: settings.config,
+          knownViolationsPath:
+            settings.knownViolations ?? settings.knownViolationsFile,
+          file: context.physicalFilename,
         },
-        // Webpack configuration is not supported currently, contributions welcome!
-        undefined,
-        tsConfig
+        context.sourceCode.text,
+        settings.timeout
       );
+
+      if (dependencies.length === 0) {
+        return {};
+      }
 
       return {
-        // This method is ran by ESlint for every import declaration in the current file
+        // This method is ran by ESLint for every import declaration in the current file
         ImportDeclaration(node) {
           // The source of the import, e.g. for "import foo from './bar'" this will be "./bar"
-          const importSource = node?.source?.value;
-
-          // We don't attempt to support anything other than strings here, whatever that would be
+          const importSource = node.source.value;
           if (typeof importSource !== "string") {
             return;
           }
 
-          // For some reason cruiseResult can have a string type too, but we never expect to see it
-          invariant(
-            typeof cruiseResult.output !== "string",
-            "JSON output format expected"
-          );
-
-          const cruisedModule = cruiseResult.output.modules[0];
-          invariant(
-            !!cruisedModule,
-            "DC lists the cruising entry point as the first entry in the modules array"
-          );
-
-          // Find the currently visited import declaration node in the list of dependencies
-          // of the currently visited file found by DC. If for whatever reason it's not in the list
-          // we just move on to the next import declaration - we don't have any problems to report.
-          const dependency = cruisedModule.dependencies.find(
+          const dependency = dependencies.find(
             (dep) => dep.module === importSource
           );
-          if (!dependency || dependency.valid || !dependency.rules) {
+          if (!dependency) {
             return;
           }
 
-          for (const ruleViolation of dependency.rules) {
-            const brokenRule = ruleSet.forbidden?.find(
-              (rule) => rule.name === ruleViolation.name
-            );
-
-            // If we can't find the rule that was broken, let's bail. This could be an invariant,
-            // but I'm not sure if the aren't any legit reasons for this.
-            if (!brokenRule) {
-              return;
+          for (const violation of dependency.rules) {
+            // Violations ignored via the baseline file come back from DC with
+            // severity "ignore", so they never match.
+            if (violation.severity !== severity) {
+              continue;
             }
 
-            // Severity of the rule violation reported by DC is different than the severity of the
-            // DC dependency rule itself e.g. if the violation is ignored via the baseline file. In
-            // that case we bail and don't report anything.
-            if (ruleViolation.severity !== brokenRule?.severity) {
-              return;
-            }
-
-            // Report the rule violation, e.g.
-            // "not-to-test (./my-file.test): Don't import test code from app code"
+            // e.g. "not-to-test (./my-file.test): Don't import test code from app code"
             context.report({
               node,
-              message: `${
-                ruleViolation.name
-              } (${importSource}): ${brokenRule.comment ??
-                "Import violates the import rules"}`,
+              messageId: "violation",
+              data: {
+                name: violation.name,
+                source: importSource,
+                comment: violation.comment ?? "Import violates the import rules",
+              },
             });
           }
         },

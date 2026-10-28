@@ -1,37 +1,61 @@
 {
   "name": "eslint-plugin-dependency-cruiser",
   "version": "0.1.1",
-  "main": "dist/index.js",
+  "description": "Runs dependency-cruiser as an ESLint rule and reports import rule violations",
   "author": "Maciek Pekala <m@peka.la>",
   "license": "MIT",
-  "devDependencies": {
-    "@types/eslint": "^8.4.5",
-    "@types/node": "^18.0.5",
-    "@typescript-eslint/parser": "^5.30.6",
-    "dependency-cruiser": "^11.11.0",
-    "eslint": "^8.19.0",
-    "eslint-plugin-eslint-plugin": "^5.0.0",
-    "tsup": "^6.1.3",
-    "typescript": "^4.7.4"
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "dependency-cruiser"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
-  "peerDependencies": {
-    "dependency-cruiser": "^11.11.0",
-    "eslint": ">=0.8.0"
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22 || ^24 || >=26"
   },
   "scripts": {
     "build": "tsup",
-    "watch": "tsup --watch"
-  },
-  "tsup": {
-    "entry": [
-      "src/index.ts"
-    ],
-    "splitting": false,
-    "sourcemap": false,
-    "clean": true
+    "watch": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "tsup && node --test \"test/*.test.mjs\""
   },
   "dependencies": {
-    "json5": "^2.2.1",
-    "ts-invariant": "^0.10.3"
+    "json5": "^2.2.3",
+    "synckit": "^0.12.3"
+  },
+  "peerDependencies": {
+    "dependency-cruiser": "^18.0.0",
+    "eslint": "^9.0.0 || ^10.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^22.0.0",
+    "dependency-cruiser": "^18.7.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-eslint-plugin": "^7.6.2",
+    "jiti": "^2.6.0",
+    "tsup": "^8.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.1"
   }
 }
