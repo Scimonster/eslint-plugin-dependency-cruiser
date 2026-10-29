@@ -24,6 +24,8 @@ interface State {
   hashes: Map<string, string | null>;
   /** When the cruise started; files modified since may not be in the index */
   at: number;
+  /** When files on disk were last checked for changes the watcher missed */
+  checkedAt: number;
   configMtime: number | null;
   baselineMtime: number | null;
   fingerprint?: string;
@@ -42,10 +44,15 @@ interface State {
  * - the config changed. The caller waits for this too.
  * - a watcher saw a change under the roots. This is what catches an edit to A
  *   changing B's result (a broken cycle, a new orphan).
- * - the graph is older than the TTL, as a backstop for missed watcher events.
  * - the baseline changed.
+ * - every TTL, as a backstop for missed watcher events, if a file the index
+ *   knows about was modified or deleted since the cruise started.
  * For the last three, the stale graph is served while a refresh runs in the
  * background. In a CLI run nothing changes, so none of these fire.
+ *
+ * A "background" refresh still holds up rule calls: the worker can only
+ * answer between the cruise's long synchronous stretches. So the TTL only
+ * checks modification times (cheap) and re-cruises if something changed.
  */
 export class GraphCache {
   cruises = 0;
@@ -116,13 +123,33 @@ export class GraphCache {
       await this.#refresh();
     } else if (
       this.#dirty ||
-      Date.now() - this.#state.at > this.#options.ttl ||
-      mtime(this.#project!.baselineFile) !== this.#state.baselineMtime
+      mtime(this.#project!.baselineFile) !== this.#state.baselineMtime ||
+      this.#missedChange()
     ) {
       void this.#refresh().catch(() => {
         // Served stale; the next foreground refresh will surface the error
       });
     }
+  }
+
+  /**
+   * Once per TTL, whether a file the index knows about was modified or
+   * deleted since the cruise started, which the watcher should have caught.
+   */
+  #missedChange() {
+    const state = this.#state!;
+    const now = Date.now();
+    if (now - state.checkedAt <= this.#options.ttl) {
+      return false;
+    }
+    state.checkedAt = now;
+    for (const [file, hash] of state.hashes) {
+      const modified = mtime(this.#resolve(file));
+      if (modified === null ? hash !== null : modified >= state.at) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -192,6 +219,7 @@ export class GraphCache {
       index: buildIndex(result, project.comments),
       hashes,
       at: startedAt,
+      checkedAt: startedAt,
       configMtime: mtime(project.configFile),
       baselineMtime,
     };
