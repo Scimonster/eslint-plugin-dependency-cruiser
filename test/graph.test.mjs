@@ -131,3 +131,30 @@ describe("graph invalidation", () => {
     await eventually(() => names("src/x.ts").includes("no-circular"));
   });
 });
+
+describe("graph TTL", () => {
+  let cwd;
+  before(() => {
+    cwd = fs.mkdtempSync(path.join(os.tmpdir(), "depcruise-eslint-ttl-"));
+    fs.cpSync(fixture, cwd, {
+      recursive: true,
+      filter: (source) => !source.includes("node_modules"),
+    });
+  });
+  after(() => {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("doesn't re-cruise when the TTL expires and nothing changed", async () => {
+    const request = (file) =>
+      getReports({ kind: "reports", cwd, roots: ["src"], cache: false, ttl: 0, file: path.join(cwd, file) });
+    assert.deepEqual(request("src/b.ts").reports.map((report) => report.name), ["no-circular"]);
+    for (const file of ["src/a.ts", "src/b.ts", "src/c.ts", "src/notes.md"]) {
+      await sleep(20);
+      request(file);
+    }
+    // Give any background refresh time to finish before counting
+    await sleep(500);
+    assert.equal(request("src/a.ts").cruises, 1);
+  });
+});
