@@ -110,6 +110,43 @@ In an editor, the ESLint process lives on, and the graph is refreshed when:
 - the graph is older than `ttl`, or the baseline file changed (also in the
   background).
 
+## Using `--cache` and `--concurrency`
+
+With `eslint --cache`, ESLint only re-lints files that changed. But a
+dependency violation can change without its file changing: editing `a.ts` to
+break a cycle should also clear the violation reported on `b.ts`. To handle
+that, wrap the plugin's settings in `withGraphFingerprint`:
+
+```js
+import dependencyCruiser from "eslint-plugin-dependency-cruiser";
+
+export default [
+  dependencyCruiser.configs.all,
+  {
+    settings: {
+      "dependency-cruiser": dependencyCruiser.withGraphFingerprint({
+        config: ".dependency-cruiser.cjs",
+      }),
+    },
+  },
+];
+```
+
+It cruises the project when the config is loaded and adds a fingerprint of
+all its violations to the settings, so ESLint re-lints every file whenever a
+violation anywhere appears or disappears, and only then. The rules reuse that
+cruise, so it doesn't add one.
+
+It also helps `eslint --concurrency`: ESLint loads the config before it starts
+its threads, so the cruise warms Dependency Cruiser's disk cache, and each
+thread's own first cruise is a cache hit instead of a full cruise. The threads
+reuse the fingerprint instead of computing it again.
+
+`withGraphFingerprint` takes the same settings as above, and an optional
+second argument `{ cwd }`, which defaults to `process.cwd()`. It must match
+ESLint's working directory, or the fingerprint and the rules use separate
+cruises.
+
 ## Limitations
 
 The plugin is not exposing all validation features or configuration options of
@@ -120,8 +157,9 @@ Dependency Cruiser. Some things missing:
 - Changes to a JavaScript Dependency Cruiser config (`.js`, `.cjs`, `.mjs`)
   need an ESLint restart (e.g. "Restart ESLint Server" in VS Code), because
   Node caches imported modules. JSON configs are reloaded.
-- With `eslint --cache`, files that didn't change aren't re-linted, so their
-  graph violations (e.g. a cycle through an edited file) can be stale
+- With `eslint --cache` and without `withGraphFingerprint`, files that didn't
+  change aren't re-linted, so their graph violations (e.g. a cycle through an
+  edited file) can be stale
 
 ## Performance
 
