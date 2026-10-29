@@ -20,6 +20,19 @@ yarn add --dev eslint-plugin-dependency-cruiser
 `eslint-plugin-dependency-cruiser` does not install Dependency Cruiser or ESLint
 for you. You must install these yourself.
 
+### Installing from git
+
+`main` has no built files. The `release` branch is `main` plus the built
+`dist/`, so install from it:
+
+```json
+"eslint-plugin-dependency-cruiser": "github:Scimonster/eslint-plugin-dependency-cruiser#release"
+```
+
+To update `release` after changes to `main`, run its "Build release branch"
+workflow, or merge `main` into it, run `yarn build`, and commit `dist/` with
+`git add -f dist`.
+
 Supported versions:
 
 - ESLint 9 or 10 (flat config)

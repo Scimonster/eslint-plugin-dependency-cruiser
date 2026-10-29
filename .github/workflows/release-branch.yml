@@ -1,0 +1,40 @@
+# Rebuilds this branch from main: merges main in and commits the built dist/,
+# so the plugin can be installed from git. Lives only on the release branch;
+# run it with `gh workflow run release-branch.yml --ref release`.
+name: Build release branch
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Merge main and commit dist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "yarn"
+      - name: Merge main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit origin/main
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+      - name: Commit and push dist
+        run: |
+          git add -f dist
+          if git diff --cached --quiet; then
+            echo "dist is up to date"
+          else
+            git commit -m "build: dist for $(git rev-parse --short origin/main)"
+          fi
+          git push origin HEAD:release
