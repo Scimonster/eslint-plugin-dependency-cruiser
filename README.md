@@ -29,9 +29,9 @@ for you. You must install these yourself.
 "eslint-plugin-dependency-cruiser": "github:Scimonster/eslint-plugin-dependency-cruiser#release"
 ```
 
-To update `release` after changes to `main`, run its "Build release branch"
-workflow, or merge `main` into it, run `yarn build`, and commit `dist/` with
-`git add -f dist`.
+To update `release` after changes to `main`: check out `release`, merge
+`main` into it, run `yarn build`, commit `dist/` with `git add -f dist`, and
+push.
 
 Supported versions:
 
