@@ -193,10 +193,29 @@ var GraphCache = class {
   async #ensureFresh(mustWait) {
     if (!this.#state || mustWait() || mtime(this.#project.configFile) !== this.#state.configMtime) {
       await this.#refresh();
-    } else if (this.#dirty || Date.now() - this.#state.at > this.#options.ttl || mtime(this.#project.baselineFile) !== this.#state.baselineMtime) {
+    } else if (this.#dirty || mtime(this.#project.baselineFile) !== this.#state.baselineMtime || this.#missedChange()) {
       void this.#refresh().catch(() => {
       });
     }
+  }
+  /**
+   * Once per TTL, whether a file the index knows about was modified or
+   * deleted since the cruise started, which the watcher should have caught.
+   */
+  #missedChange() {
+    const state = this.#state;
+    const now = Date.now();
+    if (now - state.checkedAt <= this.#options.ttl) {
+      return false;
+    }
+    state.checkedAt = now;
+    for (const [file, hash] of state.hashes) {
+      const modified = mtime(this.#resolve(file));
+      if (modified === null ? hash !== null : modified >= state.at) {
+        return true;
+      }
+    }
+    return false;
   }
   /**
    * Whether a file differs from what the index was built from. A file the
@@ -253,6 +272,7 @@ var GraphCache = class {
       index: buildIndex(result, project.comments),
       hashes,
       at: startedAt,
+      checkedAt: startedAt,
       configMtime: mtime(project.configFile),
       baselineMtime
     };
