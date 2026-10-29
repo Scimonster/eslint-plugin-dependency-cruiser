@@ -74,7 +74,7 @@ export default [
         roots: ["src", "scripts"],
         // Whether the first cruise may use Dependency Cruiser's disk cache
         cache: true,
-        // How old the dependency graph may get before it's refreshed, in ms
+        // How often to check files on disk for changes the watcher missed, in ms
         ttl: 30000,
         // How long to wait for Dependency Cruiser before failing, in ms
         timeout: 60000,
@@ -120,8 +120,10 @@ In an editor, the ESLint process lives on, and the graph is refreshed when:
   the violations of another (e.g. a broken cycle). The previous results are
   served while the graph refreshes in the background, so other files catch up
   on their next lint.
-- the graph is older than `ttl`, or the baseline file changed (also in the
-  background).
+- the baseline file changed (also in the background).
+- a file in the graph was modified or deleted without the watcher noticing.
+  This is checked every `ttl` by comparing modification times, so a long
+  lint run where nothing changes never re-cruises.
 
 ## Using `--cache` and `--concurrency`
 

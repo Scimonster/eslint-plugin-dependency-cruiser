@@ -14,7 +14,7 @@ export interface PluginSettings {
   roots?: string[];
   /** Whether the first cruise may use dependency-cruiser's disk cache. Defaults to true */
   cache?: boolean;
-  /** How old (ms) the dependency graph may get before it's refreshed. Defaults to 30s */
+  /** How often (ms) to check files on disk for changes the watcher missed. Defaults to 30s */
   ttl?: number;
   /** How long (ms) to wait for the dependency-cruiser worker before failing */
   timeout?: number;
