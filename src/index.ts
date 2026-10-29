@@ -1,5 +1,6 @@
 import type { ESLint, Linter } from "eslint";
 
+import { withGraphFingerprint } from "./fingerprint";
 import { getDependencyCruiserRule } from "./rule";
 
 declare const __PACKAGE_VERSION__: string;
@@ -14,7 +15,8 @@ const plugin = {
     warnings: getDependencyCruiserRule("warn"),
   },
   configs: {} as { all: Linter.Config },
-} satisfies ESLint.Plugin;
+  withGraphFingerprint,
+} satisfies ESLint.Plugin & Record<string, unknown>;
 
 plugin.configs.all = {
   name: "dependency-cruiser/all",

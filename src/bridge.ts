@@ -1,30 +1,29 @@
 import { createSyncFn } from "synckit";
-import type { ReportsRequest, ReportsResponse } from "./types";
+import type { WorkerRequest, WorkerResponses } from "./types";
+import type { handle } from "./worker";
 
 const DEFAULT_TIMEOUT = 60_000;
 
-type SyncGetReports = (request: ReportsRequest) => ReportsResponse;
-
 // synckit keeps one worker per worker path, so there's only ever one
-let worker: SyncGetReports | undefined;
+let worker: ((request: WorkerRequest) => unknown) | undefined;
 
 /**
- * Gets a file's dependency-cruiser reports synchronously (ESLint rules can't be
- * async) by blocking on a worker thread. The worker is started on first use and
- * then reused for the lifetime of the process, keeping the dependency graph in
+ * Calls the dependency-cruiser worker synchronously (ESLint rules can't be
+ * async) by blocking on its thread. The worker is started on first use and
+ * then reused for the lifetime of the process, keeping dependency graphs in
  * memory.
  */
-export function getReportsSync(
-  request: ReportsRequest,
+export function callWorkerSync<Request extends WorkerRequest>(
+  request: Request,
   timeout = DEFAULT_TIMEOUT
-): ReportsResponse {
+): WorkerResponses[Request["kind"]] {
   if (!worker) {
     // Always pass a timeout: if the worker dies, synckit would otherwise block
     // the ESLint thread forever.
-    worker = createSyncFn<(request: ReportsRequest) => Promise<ReportsResponse>>(
+    worker = createSyncFn<typeof handle>(
       new URL("./worker.mjs", import.meta.url),
       { timeout }
     );
   }
-  return worker(request);
+  return worker(request) as WorkerResponses[Request["kind"]];
 }

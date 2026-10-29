@@ -18,22 +18,38 @@ export interface PluginSettings {
   ttl?: number;
   /** How long (ms) to wait for the dependency-cruiser worker before failing */
   timeout?: number;
+  /**
+   * Fingerprint of the dependency graph's violations, set by
+   * `withGraphFingerprint`. Not read by the rules: it only exists so that
+   * ESLint's `--cache` sees a config change whenever the violations change.
+   */
+  graph?: string;
 }
 
 /**
- * What the rule sends to the worker. Only plain data, since it crosses a thread
- * boundary via structured clone.
+ * Identifies a project (and how to cruise it) in the worker. Only plain data,
+ * since it crosses a thread boundary via structured clone.
  */
-export interface ReportsRequest {
+export interface ProjectRequest {
   cwd: string;
   configPath?: string;
   knownViolationsPath?: string;
   roots: string[];
   cache: boolean;
   ttl: number;
+}
+
+export interface ReportsRequest extends ProjectRequest {
+  kind: "reports";
   /** Absolute path of the linted file */
   file: string;
 }
+
+export interface FingerprintRequest extends ProjectRequest {
+  kind: "fingerprint";
+}
+
+export type WorkerRequest = ReportsRequest | FingerprintRequest;
 
 /**
  * A violation found by dependency-cruiser, and where the rule should report it:
@@ -51,8 +67,20 @@ export interface Report {
   cycle?: string[];
 }
 
-export interface ReportsResponse {
-  reports: Report[];
+interface DebugInfo {
   /** Number of full cruises this project has done; only set for debugging */
   cruises?: number;
+}
+
+export interface ReportsResponse extends DebugInfo {
+  reports: Report[];
+}
+
+export interface FingerprintResponse extends DebugInfo {
+  fingerprint: string;
+}
+
+export interface WorkerResponses {
+  reports: ReportsResponse;
+  fingerprint: FingerprintResponse;
 }

@@ -26,6 +26,7 @@ interface State {
   at: number;
   configMtime: number | null;
   baselineMtime: number | null;
+  fingerprint?: string;
 }
 
 /**
@@ -70,9 +71,46 @@ export class GraphCache {
   async get(file: string): Promise<Report[]> {
     const absoluteFile = this.#resolve(file);
     const hash = hashFile(absoluteFile);
+    await this.#ensureFresh(() =>
+      this.#changedSinceCruise(file, absoluteFile, hash)
+    );
+
+    const state = this.#state!;
+    // Remember files the graph doesn't include (excluded, or outside the
+    // cruise), so they don't trigger a re-cruise on every call.
+    if (!state.hashes.has(file)) {
+      state.hashes.set(file, hash);
+    }
+    return state.index.get(file) ?? [];
+  }
+
+  /**
+   * A short hash of every report in the index. It changes whenever any
+   * violation anywhere appears or disappears, and only then.
+   */
+  async fingerprint(): Promise<string> {
+    await this.#ensureFresh(() => false);
+    const state = this.#state!;
+    state.fingerprint ??= createHash("sha1")
+      .update(
+        JSON.stringify(
+          [...state.index].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        )
+      )
+      .digest("hex")
+      .slice(0, 16);
+    return state.fingerprint;
+  }
+
+  /**
+   * Waits for a re-cruise when there's no index yet, the config changed, or
+   * `mustWait` says the caller needs one; otherwise starts one in the
+   * background if the index may be stale, and serves the current index.
+   */
+  async #ensureFresh(mustWait: () => boolean) {
     if (
       !this.#state ||
-      this.#changedSinceCruise(file, absoluteFile, hash) ||
+      mustWait() ||
       mtime(this.#project!.configFile) !== this.#state.configMtime
     ) {
       await this.#refresh();
@@ -85,14 +123,6 @@ export class GraphCache {
         // Served stale; the next foreground refresh will surface the error
       });
     }
-
-    const state = this.#state!;
-    // Remember files the graph doesn't include (excluded, or outside the
-    // cruise), so they don't trigger a re-cruise on every call.
-    if (!state.hashes.has(file)) {
-      state.hashes.set(file, hash);
-    }
-    return state.index.get(file) ?? [];
   }
 
   /**

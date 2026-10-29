@@ -3,12 +3,11 @@ import path from "node:path";
 import type { Rule } from "eslint";
 import type { SeverityType } from "dependency-cruiser";
 
-import { getReportsSync } from "./bridge";
+import { callWorkerSync } from "./bridge";
 import { isUnderRoots } from "./graph-cache";
+import { toProjectRequest } from "./settings";
 import type { PluginSettings, Report } from "./types";
 
-const DEFAULT_ROOTS = ["src"];
-const DEFAULT_TTL = 30_000;
 const DEFAULT_COMMENT = "Import violates the import rules";
 
 // Loosely typed, since the TypeScript nodes aren't part of ESTree's types
@@ -38,24 +37,15 @@ export function getDependencyCruiserRule(
         context.settings["dependency-cruiser"] ?? {};
       const cwd = context.cwd;
       const file = context.physicalFilename;
-      const roots = settings.roots ?? DEFAULT_ROOTS;
+      const project = toProjectRequest(cwd, settings);
 
       // Files outside the cruised folders have no reports; skip the worker
-      if (!path.isAbsolute(file) || !isUnderRoots(cwd, roots, file)) {
+      if (!path.isAbsolute(file) || !isUnderRoots(cwd, project.roots, file)) {
         return {};
       }
 
-      const reports = getReportsSync(
-        {
-          cwd,
-          configPath: settings.config,
-          knownViolationsPath:
-            settings.knownViolations ?? settings.knownViolationsFile,
-          roots,
-          cache: settings.cache ?? true,
-          ttl: settings.ttl ?? DEFAULT_TTL,
-          file,
-        },
+      const reports = callWorkerSync(
+        { kind: "reports", ...project, file },
         settings.timeout
       ).reports.filter((report) => report.severity === severity);
 
