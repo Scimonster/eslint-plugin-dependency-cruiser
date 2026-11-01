@@ -114,6 +114,31 @@ describe("eslint --cache", () => {
   });
 });
 
+describe("dependency-cruiser's disk cache", () => {
+  let cwd;
+  before(() => {
+    // Inside the repo, so dependency-cruiser's git-based disk cache is used
+    cwd = setUpProject({ fingerprint: false, inside: fixtures });
+  });
+  after(() => {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("isn't served after a rule changes", () => {
+    // `includeOnly` keeps the config file out of the git diff the disk cache
+    // checks, so only the plugin can notice the rule change
+    const configFile = path.join(cwd, ".dependency-cruiser.cjs");
+    const config = fs
+      .readFileSync(configFile, "utf8")
+      .replace("options: {", 'options: {\n    includeOnly: "src/",');
+    fs.writeFileSync(configFile, config);
+    assert.deepEqual(lint(cwd).violations["src/b.ts"], ["no-circular"]);
+
+    fs.writeFileSync(configFile, config.replace('"no-circular"', '"no-cycles"'));
+    assert.deepEqual(lint(cwd).violations["src/b.ts"], ["no-cycles"]);
+  });
+});
+
 describe("eslint --concurrency", () => {
   let cwd;
   before(() => {
