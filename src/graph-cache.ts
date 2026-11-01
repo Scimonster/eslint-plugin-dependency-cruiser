@@ -36,8 +36,8 @@ interface State {
  * lookup. One instance per project, living in the worker.
  *
  * The first cruise may use dependency-cruiser's disk cache with the `metadata`
- * strategy, which is keyed on git HEAD plus uncommitted changes, so it's always
- * current. After that the graph is re-cruised (without the disk cache, which
+ * strategy, which is keyed on git HEAD plus uncommitted changes. That misses
+ * rule changes, so it's also kept per hash of the resolved config. After that the graph is re-cruised (without the disk cache, which
  * would miss anyway) when:
  * - the linted file's content differs from what was cruised, or it's new.
  *   This is the file the user just saved, so the caller waits for the cruise.
@@ -230,7 +230,7 @@ export class GraphCache {
   }
 
   async #cruiseRoots(roots: string[], useDiskCache: boolean) {
-    const { cruise, options, tsConfig, baselineFile } = this.#project!;
+    const { cruise, options, tsConfig, baselineFile, configHash } = this.#project!;
     const knownViolations = loadKnownViolations(baselineFile);
     const { output } = await cruise(
       // Always the same roots and options, or the disk cache misses
@@ -241,7 +241,9 @@ export class GraphCache {
         baseDir: this.#options.cwd,
         cache: useDiskCache
           ? ({
-              folder: this.#resolve(DISK_CACHE_FOLDER),
+              // DC doesn't check whether the rules changed, so a rule change
+              // must land in another folder
+              folder: this.#resolve(path.join(DISK_CACHE_FOLDER, configHash)),
               strategy: "metadata",
             } as ICruiseOptions["cache"])
           : false,

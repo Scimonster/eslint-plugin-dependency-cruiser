@@ -110,8 +110,8 @@ The worker cruises the roots once, and keeps the violations of every file in
 memory, so each file after the first is a lookup. The first cruise uses
 Dependency Cruiser's disk cache (in
 `node_modules/.cache/eslint-plugin-dependency-cruiser`), keyed on the git
-commit and uncommitted changes, so it's fast when nothing changed since the
-last run.
+commit, uncommitted changes and the resolved Dependency Cruiser config, so
+it's fast when nothing changed since the last run.
 
 In an editor, the ESLint process lives on, and the graph is refreshed when:
 
