@@ -93,11 +93,12 @@ function withGraphFingerprint(settings, { cwd = process.cwd() } = {}) {
 var import_node_path3 = __toESM(require("path"));
 
 // src/graph-cache.ts
-var import_node_crypto2 = require("crypto");
+var import_node_crypto3 = require("crypto");
 var import_node_fs2 = __toESM(require("fs"));
 var import_node_path2 = __toESM(require("path"));
 
 // src/project.ts
+var import_node_crypto2 = require("crypto");
 var import_node_fs = __toESM(require("fs"));
 var import_node_path = __toESM(require("path"));
 var import_json5 = __toESM(require("json5"));

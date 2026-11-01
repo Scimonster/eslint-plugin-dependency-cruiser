@@ -3,7 +3,7 @@ import path3 from "path";
 import { runAsWorker } from "synckit";
 
 // src/graph-cache.ts
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 import fs2 from "fs";
 import path2 from "path";
 
@@ -55,6 +55,7 @@ function buildIndex(result, comments) {
 }
 
 // src/project.ts
+import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import json5 from "json5";
@@ -92,7 +93,8 @@ async function loadProject(cwd, configPath, knownViolationsPath) {
     tsConfig,
     comments: collectRuleComments(config),
     configFile,
-    baselineFile
+    baselineFile,
+    configHash: createHash("sha1").update(JSON.stringify(options)).digest("hex").slice(0, 16)
   };
 }
 function findConfigFile(cwd, configPath) {
@@ -178,7 +180,7 @@ var GraphCache = class {
   async fingerprint() {
     await this.#ensureFresh(() => false);
     const state = this.#state;
-    state.fingerprint ??= createHash("sha1").update(
+    state.fingerprint ??= createHash2("sha1").update(
       JSON.stringify(
         [...state.index].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
       )
@@ -281,7 +283,7 @@ var GraphCache = class {
     }
   }
   async #cruiseRoots(roots, useDiskCache) {
-    const { cruise, options, tsConfig, baselineFile } = this.#project;
+    const { cruise, options, tsConfig, baselineFile, configHash } = this.#project;
     const knownViolations = loadKnownViolations(baselineFile);
     const { output } = await cruise(
       // Always the same roots and options, or the disk cache misses
@@ -291,7 +293,9 @@ var GraphCache = class {
         ...knownViolations ? { knownViolations } : {},
         baseDir: this.#options.cwd,
         cache: useDiskCache ? {
-          folder: this.#resolve(DISK_CACHE_FOLDER),
+          // DC doesn't check whether the rules changed, so a rule change
+          // must land in another folder
+          folder: this.#resolve(path2.join(DISK_CACHE_FOLDER, configHash)),
           strategy: "metadata"
         } : false
       },
@@ -346,7 +350,7 @@ function isUnderRoots(cwd, roots, absoluteFile) {
 }
 function hashFile(file) {
   try {
-    return createHash("sha1").update(fs2.readFileSync(file)).digest("base64");
+    return createHash2("sha1").update(fs2.readFileSync(file)).digest("base64");
   } catch {
     return null;
   }

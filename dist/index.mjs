@@ -53,11 +53,12 @@ function withGraphFingerprint(settings, { cwd = process.cwd() } = {}) {
 import path3 from "path";
 
 // src/graph-cache.ts
-import { createHash as createHash2 } from "crypto";
+import { createHash as createHash3 } from "crypto";
 import fs2 from "fs";
 import path2 from "path";
 
 // src/project.ts
+import { createHash as createHash2 } from "crypto";
 import fs from "fs";
 import path from "path";
 import json5 from "json5";
