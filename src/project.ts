@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -25,6 +26,11 @@ export interface Project {
   comments: Map<string, string | undefined>;
   configFile: string;
   baselineFile: string;
+  /**
+   * Hash of the resolved config (after `extends`). DC's disk cache doesn't
+   * compare rule sets, so it's kept per config hash.
+   */
+  configHash: string;
 }
 
 /**
@@ -74,6 +80,10 @@ export async function loadProject(
     comments: collectRuleComments(config),
     configFile,
     baselineFile,
+    configHash: createHash("sha1")
+      .update(JSON.stringify(options))
+      .digest("hex")
+      .slice(0, 16),
   };
 }
 
